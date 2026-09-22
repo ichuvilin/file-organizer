@@ -84,7 +84,7 @@ func (fo *FileOrganizer) logError(message string) {
 	log.Printf("[ERROR] %s\n", message)
 }
 
-func (fo *FileOrganizer) moveFile(sourcePath, targetDir string) error {
+func (fo *FileOrganizer) moveFile(sourcePath, targetDir string, size int64) error {
 	fullPath := filepath.Join(fo.sourceDir, targetDir)
 	fileName := filepath.Base(sourcePath)
 
@@ -103,14 +103,13 @@ func (fo *FileOrganizer) moveFile(sourcePath, targetDir string) error {
 	if err != nil {
 		return err
 	}
-	info, _ := os.Stat(filepath.Join(fullPath, fileName))
 
 	value, ok := fo.statistics[targetDir]
 	if !ok {
-		fo.statistics[targetDir] = &FileStats{Count: 1, TotalSize: info.Size()}
+		fo.statistics[targetDir] = &FileStats{Count: 1, TotalSize: size}
 	} else {
 		value.Count += 1
-		value.TotalSize += info.Size()
+		value.TotalSize += size
 	}
 	return nil
 }
@@ -134,12 +133,12 @@ func (fo *FileOrganizer) Organize() error {
 		ext := strings.ToLower(filepath.Ext(d.Name()))
 		folder, ok := fo.rulesMap[ext]
 		if ok {
-			err := fo.moveFile(path, folder)
+			info, _ := d.Info()
+			err := fo.moveFile(path, folder, info.Size())
 			if err != nil {
 				return err
 			}
 			fo.processedFiles += 1
-			info, _ := d.Info()
 			fo.totalSize += info.Size()
 		}
 
