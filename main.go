@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -92,6 +93,33 @@ func (fo *FileOrganizer) moveFile(sourcePath, targetDir string) error {
 		return err
 	}
 	return nil
+}
+
+func (fo *FileOrganizer) Organize() error {
+	err := fo.initLog()
+	if err != nil {
+		return err
+	}
+	return filepath.WalkDir(fo.sourceDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		if filepath.Dir(path) != fo.sourceDir {
+			return nil
+		}
+		ext := strings.ToLower(filepath.Ext(d.Name()))
+		folder, ok := fo.rulesMap[ext]
+		if ok {
+			fo.moveFile(path, folder)
+			fo.processedFiles += 1
+		}
+
+		return nil
+	})
 }
 
 func main() {
