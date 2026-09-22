@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 var DefaultRules = map[string]string{
@@ -67,6 +70,28 @@ func (fo *FileOrganizer) logSuccess(message string) {
 
 func (fo *FileOrganizer) logError(message string) {
 	log.Printf("[ERROR] %s\n", message)
+}
+
+func (fo *FileOrganizer) moveFile(sourcePath, targetDir string) error {
+	fullPath := filepath.Join(fo.sourceDir, targetDir)
+	fileName := filepath.Base(sourcePath)
+
+	err := os.MkdirAll(fullPath, 0644)
+	if err != nil {
+		return err
+	}
+
+	_, err = os.Stat(filepath.Join(fullPath, fileName))
+	if err == nil {
+		ext := filepath.Ext(fileName)
+		name := strings.TrimSuffix(fileName, ext)
+		fileName = fmt.Sprintf("%s_%s%s", name, time.Now().Format("2006-01-02_15-04-05"), ext)
+	}
+	err = os.Rename(sourcePath, filepath.Join(fullPath, fileName))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func main() {
