@@ -23,6 +23,17 @@ type FileOrganizer struct {
 	rulesMap       map[string]string
 	processedFiles int
 	logFile        *os.File
+	statistics     map[string]*FileStats
+	totalSize      int64
+}
+
+type FileStats struct {
+	Count     int
+	TotalSize int64
+}
+
+func (fs *FileStats) String() string {
+	return fmt.Sprintf("Файлов: %d, Размер: %.2f KB", fs.Count, float64(fs.TotalSize)/1024)
 }
 
 func NewFileOrganizer(sourceDir string) (*FileOrganizer, error) {
@@ -38,7 +49,7 @@ func NewFileOrganizer(sourceDir string) (*FileOrganizer, error) {
 		return nil, errors.New("sourceDir is not a dir")
 	}
 
-	return &FileOrganizer{sourceDir: sourceDir, rulesMap: DefaultRules}, nil
+	return &FileOrganizer{sourceDir: sourceDir, rulesMap: DefaultRules, statistics: make(map[string]*FileStats)}, nil
 }
 
 func (fo *FileOrganizer) initLog() error {
@@ -92,6 +103,15 @@ func (fo *FileOrganizer) moveFile(sourcePath, targetDir string) error {
 	if err != nil {
 		return err
 	}
+	info, _ := os.Stat(filepath.Join(fullPath, fileName))
+
+	value, ok := fo.statistics[targetDir]
+	if !ok {
+		fo.statistics[targetDir] = &FileStats{Count: 1, TotalSize: info.Size()}
+	} else {
+		value.Count += 1
+		value.TotalSize += info.Size()
+	}
 	return nil
 }
 
@@ -114,12 +134,31 @@ func (fo *FileOrganizer) Organize() error {
 		ext := strings.ToLower(filepath.Ext(d.Name()))
 		folder, ok := fo.rulesMap[ext]
 		if ok {
-			fo.moveFile(path, folder)
+			err := fo.moveFile(path, folder)
+			if err != nil {
+				return err
+			}
 			fo.processedFiles += 1
+			info, _ := d.Info()
+			fo.totalSize += info.Size()
 		}
 
 		return nil
 	})
+}
+
+func (fo *FileOrganizer) generateReport() string {
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("=== Отчёт о перемещении файлов ===\n"))
+	builder.WriteString(fmt.Sprintf("Всего обработано файлов: %d\n", fo.processedFiles))
+	builder.WriteString(fmt.Sprintf("Общий размер: %.2f KB\n", float64(fo.totalSize)/1024))
+	builder.WriteString(fmt.Sprintf("Статистика по категориям:\n"))
+	for k, v := range fo.statistics {
+		builder.WriteString(fmt.Sprintf("%s\n", k))
+		builder.WriteString(fmt.Sprintf("%s", v))
+	}
+
+	return builder.String()
 }
 
 func main() {
