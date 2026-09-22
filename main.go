@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -90,6 +91,7 @@ func (fo *FileOrganizer) moveFile(sourcePath, targetDir string, size int64) erro
 
 	err := os.MkdirAll(fullPath, 0644)
 	if err != nil {
+		fo.logError(err.Error())
 		return err
 	}
 
@@ -101,6 +103,7 @@ func (fo *FileOrganizer) moveFile(sourcePath, targetDir string, size int64) erro
 	}
 	err = os.Rename(sourcePath, filepath.Join(fullPath, fileName))
 	if err != nil {
+		fo.logError(err.Error())
 		return err
 	}
 
@@ -111,6 +114,7 @@ func (fo *FileOrganizer) moveFile(sourcePath, targetDir string, size int64) erro
 		value.Count += 1
 		value.TotalSize += size
 	}
+	fo.logSuccess(fmt.Sprintf("Успешно переменсти файл %s в %s", fileName, targetDir))
 	return nil
 }
 
@@ -121,6 +125,7 @@ func (fo *FileOrganizer) Organize() error {
 	}
 	return filepath.WalkDir(fo.sourceDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			fo.logError(err.Error())
 			return err
 		}
 		if d.IsDir() {
@@ -136,6 +141,7 @@ func (fo *FileOrganizer) Organize() error {
 			info, _ := d.Info()
 			err := fo.moveFile(path, folder, info.Size())
 			if err != nil {
+				fo.logError(err.Error())
 				return err
 			}
 			fo.processedFiles += 1
@@ -161,6 +167,36 @@ func (fo *FileOrganizer) generateReport() string {
 }
 
 func main() {
-	folder := DefaultRules[".jpg"]
-	fmt.Println(folder)
+	fmt.Println("=== Файловый органайзер ===")
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Введите путь к директории для организации (Enter для текущей директории):")
+	input, _ := reader.ReadString('\n')
+	sourcePath := strings.TrimSpace(input)
+
+	if sourcePath == "" {
+		var err error
+
+		sourcePath, err = os.Getwd()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+
+	fo, err := NewFileOrganizer(sourcePath)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer fo.Close()
+
+	fmt.Println("Начинаем организацию файлов...")
+	if err = fo.Organize(); err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("=== Отчёт о перемещении файлов ===")
+	fmt.Println(fo.generateReport())
+
+	fmt.Println("Организация завершена! Подробности в файле organizer.log")
 }
